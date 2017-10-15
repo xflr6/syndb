@@ -3,7 +3,7 @@
 
 """Morphological paradigm/syncretism database from ODS spreadsheet tables."""
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, print_function
 
 import io
 import os
@@ -24,10 +24,10 @@ __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
 __license__ = 'MIT, see LICENSE'
 __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
-PY2 = sys.version_info < (3,)
-
 ODS_FILE = 'Datenbank2.ods'
 DB_FILE = 'syndb.sqlite3'
+
+PY2 = sys.version_info < (3,)
 
 NAMESPACES = {
     'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
