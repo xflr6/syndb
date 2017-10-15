@@ -1,0 +1,11 @@
+*.py[co]
+__pycache__/
+
+/.venv/
+
+Datenbank2.ods
+syndb.sqlite3
+syndb.sqlite3-journal
+syndb.sql
+syndb.zip
+paradigms.html
