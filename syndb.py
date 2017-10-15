@@ -293,10 +293,10 @@ def html_paradigm(paradigm):
             if cell.blind:
                 result.append('<td style="background-color:#ddd"></td>')
             else:
-                occ = contents.get(cell,[])
-                slots= {kind: list(occ) for kind, occ in 
+                occ = contents.get(cell, [])
+                slots = {kind: list(occ) for kind, occ in
                     itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
-                pf = '-'.join(o.form  for o in slots.get(-1, []))
+                pf = '-'.join(o.form for o in slots.get(-1, []))
                 if 0 in slots:
                     assert len(slots[0]) == 1
                     st = slots[0][0].form
