@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # syndb.py - paradigm/syncretism database from ods spreadsheet tables
 
+"""Morphological paradigm/syncretism database from ODS spreadsheet tables."""
+
 from __future__ import unicode_literals
 
 import io
@@ -17,6 +19,10 @@ import sqlalchemy.orm
 import sqlalchemy.ext.declarative
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship, backref
+
+__author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
+__license__ = 'MIT, see LICENSE'
+__copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
 PY2 = sys.version_info < (3,)
 
