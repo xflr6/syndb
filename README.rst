@@ -6,7 +6,7 @@ and syncretisms from an `ODS spreadsheet`_ with multiple sheets into SQLite_
 and exports (converts) the database into the following files:
 
 - a ``syndb.sql`` plain-text SQL dump
-- a ``syndb.zip`` file containing all tables as CSV_
+- a ``syndb.zip`` archive containing all tables as CSV_
 - a ``paradigms.html`` file showing all paradigms in their tabular layout
 
 
@@ -19,7 +19,7 @@ Dependencies
 
 .. _ODS spreadsheet: https://en.wikipedia.org/wiki/OpenDocument
 .. _SQLite: https://www.sqlite.org
-.. _CSV: _https://en.wikipedia.org/wiki/Comma-separated_values
+.. _CSV: https://en.wikipedia.org/wiki/Comma-separated_values
 .. _Python: https://www.python.org
 .. _ElementTree: https://docs.python.org/library/xml.etree.elementtree.html
 .. _SQLAlchemy: https://www.sqlalchemy.org/
