@@ -18,7 +18,7 @@ import sqlalchemy as sa
 import sqlalchemy.orm
 import sqlalchemy.ext.declarative
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship
 
 __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
 __license__ = 'MIT, see LICENSE'
@@ -83,6 +83,8 @@ class Language(Base):
     area = Column(String)
     speakers = Column(Integer)
 
+    paradigms = relationship('Paradigm', back_populates='language',
+                             order_by='Paradigm.name')
 
 class ParadigmClass(Base):
 
@@ -97,6 +99,12 @@ class ParadigmClass(Base):
     __table_args__ = (
         sa.CheckConstraint('ncells = nrows * ncols'),
     )
+
+    cells = relationship('ParadigmClassCell', back_populates='cls',
+        order_by='(ParadigmClassCell.row, ParadigmClassCell.col)')
+
+    paradigms = relationship('Paradigm', back_populates='cls',
+                             order_by='(Paradigm.iso, Paradigm.name)')
 
 
 class ParadigmClassCell(Base):
@@ -122,7 +130,7 @@ class ParadigmClassCell(Base):
         sa.UniqueConstraint(cls_id, label),
     )
 
-    cls = relationship(ParadigmClass, backref=backref('cells', order_by=(row, col)))
+    cls = relationship('ParadigmClass')
 
 
 class Reference(Base):
@@ -150,9 +158,15 @@ class Paradigm(Base):
         sa.UniqueConstraint(iso, name),
     )
 
-    language = relationship(Language, backref=backref('paradigms', order_by=name))
-    cls = relationship(ParadigmClass, backref=backref('paradigms', order_by=(iso, name)))
+    language = relationship('Language', back_populates='paradigms')
 
+    cls = relationship('ParadigmClass', back_populates='paradigms')
+
+    contents = relationship('ParadigmContent', back_populates='paradigm',
+        order_by='(ParadigmContent.cell_index, ParadigmContent.position)')
+
+    syncretisms = relationship('Syncretism', back_populates='paradigm',
+                               order_by='Syncretism.form')
 
 class ParadigmContent(Base):
 
@@ -170,8 +184,9 @@ class ParadigmContent(Base):
         #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),
     )
 
-    paradigm = relationship(Paradigm, backref=backref('contents', order_by=(cell_index, position)))
-    cell = relationship(ParadigmClassCell)
+    paradigm = relationship('Paradigm', back_populates='contents')
+
+    cell = relationship('ParadigmClassCell')
 
 
 class Syncretism(Base):
@@ -183,7 +198,10 @@ class Syncretism(Base):
     form = Column(String, nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
-    paradigm = relationship(Paradigm, backref=backref('syncretisms', order_by=form))
+    paradigm = relationship('Paradigm', back_populates='syncretisms')
+
+    cells = relationship('SyncretismCell', back_populates='syncretism',
+                         order_by='SyncretismCell.cell_index')
 
 
 class SyncretismCell(Base):
@@ -198,8 +216,9 @@ class SyncretismCell(Base):
         sa.ForeignKeyConstraint([cell_cls, cell_index], ['clscell.cls_id', 'clscell.index']),
     )
 
-    syncretism = relationship(Syncretism, backref=backref('cells', order_by=cell_index))
-    cell = relationship(ParadigmClassCell)
+    syncretism = relationship('Syncretism', back_populates='cells')
+
+    cell = relationship('ParadigmClassCell')
 
 
 engine = sa.create_engine('sqlite:///%s' % DB_FILE, echo=False)
