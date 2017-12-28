@@ -111,7 +111,7 @@ class ParadigmClassCell(Base):
 
     __tablename__ = 'clscell'
 
-    cls_id = Column(Integer, ForeignKey('cls.id'), primary_key=True)
+    cls_id = Column(ForeignKey('cls.id'), primary_key=True)
     index = Column(Integer, primary_key=True)
     row = Column(Integer, nullable=False)
     col = Column(Integer, nullable=False)
@@ -146,12 +146,12 @@ class Paradigm(Base):
     __tablename__ = 'paradigm'
 
     id = Column(Integer, primary_key=True)
-    iso = Column(String(3), ForeignKey('language.iso'), nullable=False)
-    cls_id = Column(Integer, ForeignKey('cls.id'), nullable=False)
+    iso = Column(ForeignKey('language.iso'), nullable=False)
+    cls_id = Column(ForeignKey('cls.id'), nullable=False)
     name = Column(String, nullable=False)
     stem = Column(String, nullable=False)
     gloss = Column(String, nullable=False)
-    reference_bibkey = Column(String, ForeignKey('reference.bibkey'))
+    reference_bibkey = Column(ForeignKey('reference.bibkey'))
     pages = Column(String)
 
     __table_args__ = (
@@ -172,7 +172,7 @@ class ParadigmContent(Base):
 
     __tablename__ = 'paradigmcontent'
 
-    paradigm_id = Column(Integer, ForeignKey('paradigm.id'), primary_key=True)
+    paradigm_id = Column(ForeignKey('paradigm.id'), primary_key=True)
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
     position = Column(Integer, primary_key=True)
@@ -194,7 +194,7 @@ class Syncretism(Base):
     __tablename__ = 'syncretism'
 
     id = Column(Integer, primary_key=True)
-    paradigm_id = Column(Integer, ForeignKey('paradigm.id'))
+    paradigm_id = Column(ForeignKey('paradigm.id'))
     form = Column(String, nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
@@ -208,7 +208,7 @@ class SyncretismCell(Base):
 
     __tablename__ = 'syncretismcell'
 
-    syncretism_id = Column(Integer, ForeignKey('syncretism.id'), primary_key=True)
+    syncretism_id = Column(ForeignKey('syncretism.id'), primary_key=True)
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
 
