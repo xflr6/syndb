@@ -14,10 +14,15 @@ import itertools
 import contextlib
 import xml.etree.cElementTree as etree
 
+try:
+    from itertools import izip as zip
+except ImportError:
+    zip = zip
+
 import sqlalchemy as sa
 import sqlalchemy.orm
 import sqlalchemy.ext.declarative
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, Unicode
 from sqlalchemy.orm import relationship
 
 __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
@@ -75,26 +80,27 @@ class Language(Base):
 
     __tablename__ = 'language'
 
-    iso = Column(String(3), primary_key=True)
-    name = Column(String, nullable=False)
-    family = Column(String)
-    stock = Column(String)
-    country = Column(String)
-    area = Column(String)
-    speakers = Column(Integer)
+    iso = Column(Unicode(3), sa.CheckConstraint('length(iso) = 3'), primary_key=True)
+    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+    family = Column(Unicode)
+    stock = Column(Unicode)
+    country = Column(Unicode)
+    area = Column(Unicode)
+    speakers = Column(Integer, sa.CheckConstraint('speakers >= 0'))
 
     paradigms = relationship('Paradigm', back_populates='language',
                              order_by='Paradigm.name')
+
 
 class ParadigmClass(Base):
 
     __tablename__ = 'cls'
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False, unique=True)
     ncells = Column(Integer, nullable=False)
-    nrows = Column(Integer, nullable=False)
-    ncols = Column(Integer, nullable=False)
+    nrows = Column(Integer, sa.CheckConstraint('nrows > 0'), nullable=False)
+    ncols = Column(Integer, sa.CheckConstraint('ncols > 0'), nullable=False)
 
     __table_args__ = (
         sa.CheckConstraint('ncells = nrows * ncols'),
@@ -111,19 +117,19 @@ class ParadigmClassCell(Base):
 
     __tablename__ = 'clscell'
 
-    cls_id = Column(ForeignKey('cls.id'), primary_key=True)
-    index = Column(Integer, primary_key=True)
-    row = Column(Integer, nullable=False)
-    col = Column(Integer, nullable=False)
+    cls_id = Column(sa.ForeignKey('cls.id'), primary_key=True)
+    index = Column(Integer, sa.CheckConstraint('"index" > 0'), primary_key=True)
+    row = Column(Integer, sa.CheckConstraint('"row" > 0'), nullable=False)
+    col = Column(Integer, sa.CheckConstraint('col > 0'), nullable=False)
     blind = Column(BooleanZeroOne, nullable=False, default=False)
-    label = Column(String, nullable=False)
-    case = Column(String)
-    number = Column(String)
-    definiteness = Column(String)
-    person = Column(String)
-    case_spec = Column(String)
-    number_spec = Column(String)
-    person_spec = Column(String)
+    label = Column(Unicode, sa.CheckConstraint("label != ''"), nullable=False)
+    case = Column(Unicode)
+    number = Column(Unicode)
+    definiteness = Column(Unicode)
+    person = Column(Unicode)
+    case_spec = Column(Unicode)
+    number_spec = Column(Unicode)
+    person_spec = Column(Unicode)
 
     __table_args__ = (
         sa.UniqueConstraint(cls_id, row, col),
@@ -137,8 +143,8 @@ class Reference(Base):
 
     __tablename__ = 'reference'
 
-    bibkey = Column(String(3), primary_key=True)
-    entry = Column(String)
+    bibkey = Column(Unicode(3), sa.CheckConstraint("bibkey != ''"), primary_key=True)
+    entry = Column(Unicode, sa.CheckConstraint("entry != ''"), nullable=False)
 
 
 class Paradigm(Base):
@@ -146,13 +152,13 @@ class Paradigm(Base):
     __tablename__ = 'paradigm'
 
     id = Column(Integer, primary_key=True)
-    iso = Column(ForeignKey('language.iso'), nullable=False)
-    cls_id = Column(ForeignKey('cls.id'), nullable=False)
-    name = Column(String, nullable=False)
-    stem = Column(String, nullable=False)
-    gloss = Column(String, nullable=False)
-    reference_bibkey = Column(ForeignKey('reference.bibkey'))
-    pages = Column(String)
+    iso = Column(sa.ForeignKey('language.iso'), nullable=False)
+    cls_id = Column(sa.ForeignKey('cls.id'), nullable=False)
+    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+    stem = Column(Unicode, sa.CheckConstraint("stem != ''"), nullable=False)
+    gloss = Column(Unicode, sa.CheckConstraint("gloss != ''"), nullable=False)
+    reference_bibkey = Column(sa.ForeignKey('reference.bibkey'))
+    pages = Column(Unicode)
 
     __table_args__ = (
         sa.UniqueConstraint(iso, name),
@@ -168,19 +174,21 @@ class Paradigm(Base):
     syncretisms = relationship('Syncretism', back_populates='paradigm',
                                order_by='Syncretism.form')
 
+
 class ParadigmContent(Base):
 
     __tablename__ = 'paradigmcontent'
 
-    paradigm_id = Column(ForeignKey('paradigm.id'), primary_key=True)
+    paradigm_id = Column(sa.ForeignKey('paradigm.id'), primary_key=True)
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
     position = Column(Integer, primary_key=True)
-    form = Column(String, nullable=False)
+    form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
     __table_args__ = (
         sa.ForeignKeyConstraint([cell_cls, cell_index], ['clscell.cls_id', 'clscell.index']),
+        sa.CheckConstraint("(position = 0) OR (kind != 'stem')"),
         #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),
     )
 
@@ -194,8 +202,8 @@ class Syncretism(Base):
     __tablename__ = 'syncretism'
 
     id = Column(Integer, primary_key=True)
-    paradigm_id = Column(ForeignKey('paradigm.id'))
-    form = Column(String, nullable=False)
+    paradigm_id = Column(sa.ForeignKey('paradigm.id'))
+    form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
     paradigm = relationship('Paradigm', back_populates='syncretisms')
@@ -208,7 +216,7 @@ class SyncretismCell(Base):
 
     __tablename__ = 'syncretismcell'
 
-    syncretism_id = Column(ForeignKey('syncretism.id'), primary_key=True)
+    syncretism_id = Column(sa.ForeignKey('syncretism.id'), primary_key=True)
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
 
@@ -330,8 +338,8 @@ def html_paradigm(paradigm):
 
 
 if __name__ == '__main__':
-    tables = load_tables(get_content_tree())
     #dbschema()
+    tables = load_tables(get_content_tree())
     insert_tables(tables)
     dump_sql()
     export_csv()
