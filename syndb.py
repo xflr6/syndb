@@ -233,8 +233,8 @@ engine = sa.create_engine('sqlite:///%s' % DB_FILE, echo=False)
 
 
 @sa.event.listens_for(sa.engine.Engine, 'connect')
-def set_sqlite_pragma(dbapi_connection, connection_record):
-    with contextlib.closing(dbapi_connection.cursor()) as cursor:
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    with contextlib.closing(dbapi_conn.cursor()) as cursor:
         cursor.execute('PRAGMA foreign_keys = ON')
 
 
@@ -254,17 +254,17 @@ def insert_tables(tables, engine=engine):
         for cls in models:
             table = tables[cls.__tablename__]
             header = [h for h in table[0] if h]
-            rows = ((c if c.strip() else None for c in cols) for cols in table[1:])
-            params = [dict(zip(header, cols)) for cols in rows]
+            rows = ((v if v.strip() else None for v in row) for row in table[1:])
+            params = [dict(zip(header, r)) for r in rows]
             conn.execute(sa.insert(cls), params)
 
 
 def dump_sql(engine=engine, encoding='utf-8'):
     filename = '%s.sql' % os.path.splitext(engine.url.database)[0]
-    with engine.connect() as conn,\
-         io.open(filename, 'w', encoding=encoding) as fd:
-        for line in conn.connection.iterdump():
-            fd.write(('%s\n' % line))
+    with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
+         io.open(filename, 'w', encoding=encoding) as f:
+        for line in dbapi_conn.iterdump():
+            f.write('%s\n' % line)
 
 
 def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
@@ -293,16 +293,16 @@ Session = sa.orm.sessionmaker(bind=engine)
 
 def render_html(filename='paradigms.html', encoding='utf-8'):
     with contextlib.closing(Session()) as session,\
-         io.open(filename, 'w', encoding=encoding) as fd:
+         io.open(filename, 'w', encoding=encoding) as f:
         query = session.query(Paradigm).join('cls').options(
             sa.orm.contains_eager('cls'),
             sa.orm.subqueryload('cls', 'cells'),
             sa.orm.subqueryload('contents'))
-        fd.write('\n'.join(['<!doctype html>', '<html>', '<head><meta charset="utf-8"></head>', '<body>', '']))
+        f.write('\n'.join(['<!doctype html>', '<html>', '<head><meta charset="utf-8"></head>', '<body>', '']))
         for p in query:
-            fd.write(html_paradigm(p))
-            fd.write('\n\n')
-        fd.write('\n'.join(['</body>', '</html>']))
+            f.write(html_paradigm(p))
+            f.write('\n\n')
+        f.write('\n'.join(['</body>', '</html>']))
 
 
 def html_paradigm(paradigm):
