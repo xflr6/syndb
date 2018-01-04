@@ -271,20 +271,20 @@ def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
     filename = '%s.zip' % os.path.splitext(engine.url.database)[0]
     with engine.connect() as conn,\
          zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
-        get_fd = io.BytesIO if PY2 else io.StringIO
+        StreamIO = io.BytesIO if PY2 else io.StringIO
         for table in metadata.sorted_tables:
-            with contextlib.closing(get_fd()) as fd:
-                writer = csv.writer(fd)
-                result = conn.execute(table.select())
+            result = conn.execute(table.select())
+            with StreamIO() as f:
+                writer = csv.writer(f)
                 writer.writerow(result.keys())
                 if PY2:
                     for row in result:
-                        writer.writerow([unicode(col).encode(encoding) if col else col for col in row])
-                    data = fd.getvalue()
+                        srow = [v.encode(encoding) if isinstance(v, unicode) else v for v in row]
+                        writer.writerow(srow)
+                    data = f.getvalue()
                 else:
-                    for row in result:
-                        writer.writerow(row)
-                    data = fd.getvalue().encode(encoding)
+                    writer.writerows(result)
+                    data = f.getvalue().encode(encoding)
                 archive.writestr('%s.csv' % table.name, data)
 
 
