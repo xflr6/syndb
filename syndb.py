@@ -26,13 +26,13 @@ from sqlalchemy import Column, Integer, Unicode
 from sqlalchemy.orm import relationship
 
 __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
-__license__ = 'MIT, see LICENSE'
+__license__ = 'MIT, see LICENSE.txt'
 __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
 ODS_FILE = 'Datenbank2.ods'
 DB_FILE = 'syndb.sqlite3'
 
-PY2 = sys.version_info < (3,)
+PY2 = sys.version_info.major == 2
 
 NAMESPACES = {
     'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
