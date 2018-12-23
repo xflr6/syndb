@@ -32,7 +32,7 @@ __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 ODS_FILE = 'Datenbank2.ods'
 DB_FILE = 'syndb.sqlite3'
 
-PY2 = sys.version_info.major == 2
+PY2 = (sys.version_info.major == 2)
 
 NAMESPACES = {
     'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
