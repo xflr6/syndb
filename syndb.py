@@ -265,16 +265,16 @@ def dump_sql(engine=engine, encoding='utf-8'):
          io.open(filename, 'w', encoding=encoding) as f:
         for line in dbapi_conn.iterdump():
             f.write('%s\n' % line)
+    return filename
 
 
 def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
     filename = '%s.zip' % os.path.splitext(engine.url.database)[0]
     with engine.connect() as conn,\
          zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
-        StreamIO = io.BytesIO if PY2 else io.StringIO
         for table in metadata.sorted_tables:
             result = conn.execute(table.select())
-            with StreamIO() as f:
+            with io.BytesIO() if PY2 else io.StringIO() as f:
                 writer = csv.writer(f)
                 writer.writerow(result.keys())
                 if PY2:
@@ -285,7 +285,8 @@ def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
                 else:
                     writer.writerows(result)
                     data = f.getvalue().encode(encoding)
-                archive.writestr('%s.csv' % table.name, data)
+            archive.writestr('%s.csv' % table.name, data)
+    return filename
 
 
 Session = sa.orm.sessionmaker(bind=engine)
