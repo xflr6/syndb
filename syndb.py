@@ -107,7 +107,8 @@ class ParadigmClass(Base):
     )
 
     cells = relationship('ParadigmClassCell', back_populates='cls',
-        order_by='(ParadigmClassCell.row, ParadigmClassCell.col)')
+                         order_by='(ParadigmClassCell.row,'
+                                  ' ParadigmClassCell.col)')
 
     paradigms = relationship('Paradigm', back_populates='cls',
                              order_by='(Paradigm.iso, Paradigm.name)')
@@ -169,7 +170,8 @@ class Paradigm(Base):
     cls = relationship('ParadigmClass', back_populates='paradigms')
 
     contents = relationship('ParadigmContent', back_populates='paradigm',
-        order_by='(ParadigmContent.cell_index, ParadigmContent.position)')
+                            order_by='(ParadigmContent.cell_index,'
+                                     ' ParadigmContent.position)')
 
     syncretisms = relationship('Syncretism', back_populates='paradigm',
                                order_by='Syncretism.form')
@@ -312,7 +314,7 @@ def html_paradigm(paradigm):
         '<table border="1">'
     ]
     contents = {cell: list(occ) for cell, occ in
-        itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
+                itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
     cmp = lambda a, b: (a > b) - (a < b)
     for row, cells in itertools.groupby(paradigm.cls.cells, key=lambda c: c.row):
         result.append('<tr>')
@@ -323,7 +325,7 @@ def html_paradigm(paradigm):
             else:
                 occ = contents.get(cell, [])
                 slots = {kind: list(occ) for kind, occ in
-                    itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
+                         itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
                 pf = '-'.join(o.form for o in slots.get(-1, []))
                 if 0 in slots:
                     assert len(slots[0]) == 1
