@@ -14,10 +14,10 @@ import itertools
 import contextlib
 import xml.etree.cElementTree as etree
 
-try:
+PY2 = (sys.version_info.major == 2)
+
+if PY2:
     from itertools import izip as zip
-except ImportError:
-    zip = zip
 
 import sqlalchemy as sa
 import sqlalchemy.orm
@@ -30,14 +30,15 @@ __license__ = 'MIT, see LICENSE.txt'
 __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
 ODS_FILE = 'Datenbank2.ods'
-DB_FILE = 'syndb.sqlite3'
-
-PY2 = (sys.version_info.major == 2)
 
 NAMESPACES = {
     'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
     'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
 }
+
+DB_FILE = 'syndb.sqlite3'
+
+ENGINE = sa.create_engine('sqlite:///%s' % DB_FILE, echo=False)
 
 
 def get_content_tree(filename=ODS_FILE, content='content.xml'):
@@ -63,6 +64,12 @@ def load_tables(tree, ns=NAMESPACES):
     return result
 
 
+@sa.event.listens_for(sa.engine.Engine, 'connect')
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    with contextlib.closing(dbapi_conn.cursor()) as cursor:
+        cursor.execute('PRAGMA foreign_keys = ON')
+
+
 class BooleanZeroOne(sa.TypeDecorator):
 
     impl = sa.Boolean
@@ -74,6 +81,26 @@ class BooleanZeroOne(sa.TypeDecorator):
 
 
 Base = sa.ext.declarative.declarative_base()
+
+
+def dbschema(metadata=Base.metadata, engine=ENGINE):
+    def dump(sql):
+        print(sql.compile(dialect=engine.dialect))
+
+    dumper = sa.create_engine(engine.url, strategy='mock', executor=dump)
+    metadata.create_all(dumper, checkfirst=False)
+
+
+def dump_sql(engine=ENGINE, encoding='utf-8'):
+    filename = '%s.sql' % os.path.splitext(engine.url.database)[0]
+    with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
+         io.open(filename, 'w', encoding=encoding) as f:
+        for line in dbapi_conn.iterdump():
+            f.write('%s\n' % line)
+    return filename
+
+
+Session = sa.orm.sessionmaker(bind=ENGINE)
 
 
 class Language(Base):
@@ -231,23 +258,7 @@ class SyncretismCell(Base):
     cell = relationship('ParadigmClassCell')
 
 
-engine = sa.create_engine('sqlite:///%s' % DB_FILE, echo=False)
-
-
-@sa.event.listens_for(sa.engine.Engine, 'connect')
-def set_sqlite_pragma(dbapi_conn, connection_record):
-    with contextlib.closing(dbapi_conn.cursor()) as cursor:
-        cursor.execute('PRAGMA foreign_keys = ON')
-
-
-def dbschema(metadata=Base.metadata, engine=engine):
-    def dump(sql):
-        print(sql.compile(dialect=engine.dialect))
-    dumper = sa.create_engine(engine.url, strategy='mock', executor=dump)
-    metadata.create_all(dumper, checkfirst=False)
-
-
-def insert_tables(tables, engine=engine):
+def insert_tables(tables, engine=ENGINE):
     if os.path.exists(engine.url.database):
         os.remove(engine.url.database)
     Base.metadata.create_all(engine)
@@ -261,16 +272,7 @@ def insert_tables(tables, engine=engine):
             conn.execute(sa.insert(cls), params)
 
 
-def dump_sql(engine=engine, encoding='utf-8'):
-    filename = '%s.sql' % os.path.splitext(engine.url.database)[0]
-    with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
-         io.open(filename, 'w', encoding=encoding) as f:
-        for line in dbapi_conn.iterdump():
-            f.write('%s\n' % line)
-    return filename
-
-
-def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
+def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
     filename = '%s.zip' % os.path.splitext(engine.url.database)[0]
     with engine.connect() as conn,\
          zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -289,9 +291,6 @@ def export_csv(metadata=Base.metadata, engine=engine, encoding='utf-8'):
                     data = f.getvalue().encode(encoding)
             archive.writestr('%s.csv' % table.name, data)
     return filename
-
-
-Session = sa.orm.sessionmaker(bind=engine)
 
 
 def render_html(filename='paradigms.html', encoding='utf-8'):
