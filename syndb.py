@@ -216,7 +216,8 @@ class ParadigmContent(Base):
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
     __table_args__ = (
-        sa.ForeignKeyConstraint([cell_cls, cell_index], ['clscell.cls_id', 'clscell.index']),
+        sa.ForeignKeyConstraint([cell_cls, cell_index],
+                                ['clscell.cls_id', 'clscell.index']),
         sa.CheckConstraint("(position = 0) OR (kind != 'stem')"),
         #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),
     )
@@ -250,7 +251,8 @@ class SyncretismCell(Base):
     cell_index = Column(Integer, primary_key=True)
 
     __table_args__ = (
-        sa.ForeignKeyConstraint([cell_cls, cell_index], ['clscell.cls_id', 'clscell.index']),
+        sa.ForeignKeyConstraint([cell_cls, cell_index],
+                                ['clscell.cls_id', 'clscell.index']),
     )
 
     syncretism = relationship('Syncretism', back_populates='cells')
@@ -261,10 +263,11 @@ class SyncretismCell(Base):
 def insert_tables(tables, engine=ENGINE):
     if os.path.exists(engine.url.database):
         os.remove(engine.url.database)
+
     Base.metadata.create_all(engine)
-    models = [Reference, Language, ParadigmClass, ParadigmClassCell, Paradigm, ParadigmContent, Syncretism, SyncretismCell]
     with engine.begin() as conn:
-        for cls in models:
+        for cls in [Reference, Language, ParadigmClass, ParadigmClassCell,
+                    Paradigm, ParadigmContent, Syncretism, SyncretismCell]:
             table = tables[cls.__tablename__]
             header = [h for h in table[0] if h]
             rows = ((v if v.strip() else None for v in row) for row in table[1:])
@@ -278,12 +281,13 @@ def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
          zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
         for table in metadata.sorted_tables:
             result = conn.execute(table.select())
-            with io.BytesIO() if PY2 else io.StringIO() as f:
+            with (io.BytesIO() if PY2 else io.StringIO()) as f:
                 writer = csv.writer(f)
                 writer.writerow(result.keys())
                 if PY2:
                     for row in result:
-                        srow = [v.encode(encoding) if isinstance(v, unicode) else v for v in row]
+                        srow = [v.encode(encoding) if isinstance(v, unicode) else v
+                                for v in row]
                         writer.writerow(srow)
                     data = f.getvalue()
                 else:
@@ -296,11 +300,13 @@ def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
 def render_html(filename='paradigms.html', encoding='utf-8'):
     with contextlib.closing(Session()) as session,\
          io.open(filename, 'w', encoding=encoding) as f:
-        query = session.query(Paradigm).join('cls').options(
-            sa.orm.contains_eager('cls'),
-            sa.orm.subqueryload('cls', 'cells'),
-            sa.orm.subqueryload('contents'))
-        f.write('\n'.join(['<!doctype html>', '<html>', '<head><meta charset="utf-8"></head>', '<body>', '']))
+        query = session.query(Paradigm).join('cls')\
+            .options(sa.orm.contains_eager('cls'),
+                     sa.orm.subqueryload('cls', 'cells'),
+                     sa.orm.subqueryload('contents'))
+        f.write('\n'.join(['<!doctype html>', '<html>',
+                           '<head><meta charset="%s"></head>' % encoding,
+                           '<body>', '']))
         for p in query:
             f.write(html_paradigm(p))
             f.write('\n\n')
