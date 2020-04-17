@@ -5,13 +5,13 @@
 
 from __future__ import unicode_literals, print_function
 
-import io
-import os
+import contextlib
 import csv
+import io
+import itertools
+import os
 import sys
 import zipfile
-import itertools
-import contextlib
 import xml.etree.cElementTree as etree
 
 PY2 = (sys.version_info.major == 2)
@@ -22,19 +22,19 @@ if PY2:
 import sqlalchemy as sa
 import sqlalchemy.orm
 import sqlalchemy.ext.declarative
+
 from sqlalchemy import Column, Integer, Unicode
 from sqlalchemy.orm import relationship
 
+__title__ = 'syndb.py'
 __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
 __license__ = 'MIT, see LICENSE.txt'
 __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
 ODS_FILE = 'Datenbank2.ods'
 
-NAMESPACES = {
-    'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
-    'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0',
-}
+NAMESPACES = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
+              'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0'}
 
 DB_FILE = 'syndb.sqlite3'
 
@@ -58,6 +58,7 @@ def load_tables(tree, ns=NAMESPACES):
                 n = int(c.attrib.get('{%(table)s}number-columns-repeated' % ns, '1'))
                 text = etree.tostring(c, 'utf-8', method='text').decode('utf-8')
                 cols.extend([text] * n)
+
             if any(cols):
                 rows.append(tuple(cols))
         result[name] = rows
@@ -108,7 +109,9 @@ class Language(Base):
     __tablename__ = 'language'
 
     iso = Column(Unicode(3), sa.CheckConstraint('length(iso) = 3'), primary_key=True)
+
     name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+
     family = Column(Unicode)
     stock = Column(Unicode)
     country = Column(Unicode)
@@ -124,7 +127,9 @@ class ParadigmClass(Base):
     __tablename__ = 'cls'
 
     id = Column(Integer, primary_key=True)
+
     name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False, unique=True)
+
     ncells = Column(Integer, nullable=False)
     nrows = Column(Integer, sa.CheckConstraint('nrows > 0'), nullable=False)
     ncols = Column(Integer, sa.CheckConstraint('ncols > 0'), nullable=False)
@@ -147,10 +152,14 @@ class ParadigmClassCell(Base):
 
     cls_id = Column(sa.ForeignKey('cls.id'), primary_key=True)
     index = Column(Integer, sa.CheckConstraint('"index" > 0'), primary_key=True)
+
     row = Column(Integer, sa.CheckConstraint('"row" > 0'), nullable=False)
     col = Column(Integer, sa.CheckConstraint('col > 0'), nullable=False)
+
     blind = Column(BooleanZeroOne, nullable=False, default=False)
+
     label = Column(Unicode, sa.CheckConstraint("label != ''"), nullable=False)
+
     case = Column(Unicode)
     number = Column(Unicode)
     definiteness = Column(Unicode)
@@ -172,6 +181,7 @@ class Reference(Base):
     __tablename__ = 'reference'
 
     bibkey = Column(Unicode(3), sa.CheckConstraint("bibkey != ''"), primary_key=True)
+
     entry = Column(Unicode, sa.CheckConstraint("entry != ''"), nullable=False)
 
 
@@ -180,9 +190,11 @@ class Paradigm(Base):
     __tablename__ = 'paradigm'
 
     id = Column(Integer, primary_key=True)
+
     iso = Column(sa.ForeignKey('language.iso'), nullable=False)
     cls_id = Column(sa.ForeignKey('cls.id'), nullable=False)
     name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+
     stem = Column(Unicode, sa.CheckConstraint("stem != ''"), nullable=False)
     gloss = Column(Unicode, sa.CheckConstraint("gloss != ''"), nullable=False)
     reference_bibkey = Column(sa.ForeignKey('reference.bibkey'))
@@ -212,6 +224,7 @@ class ParadigmContent(Base):
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
     position = Column(Integer, primary_key=True)
+
     form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
@@ -232,7 +245,9 @@ class Syncretism(Base):
     __tablename__ = 'syncretism'
 
     id = Column(Integer, primary_key=True)
+
     paradigm_id = Column(sa.ForeignKey('paradigm.id'))
+
     form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
 
