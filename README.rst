@@ -1,7 +1,7 @@
 Syndb
 =====
 
-This Python 2/3 script loads a hand-curated database of morphological paradigms
+This Python script loads a hand-curated database of morphological paradigms
 and syncretisms from an `ODS spreadsheet`_ with multiple sheets into SQLite_
 and exports (converts) the database into the following files:
 
@@ -13,7 +13,7 @@ and exports (converts) the database into the following files:
 Dependencies
 ------------
 
-- Python_ 2.7 or 3.4+ (including ElementTree_ used for ODS reading)
+- Python_ 3.6+ (including ElementTree_ used for ODS reading)
 - SQLAlchemy_
 
 

@@ -3,25 +3,17 @@
 
 """Morphological paradigm/syncretism database from ODS spreadsheet tables."""
 
-from __future__ import unicode_literals, print_function
-
 import contextlib
 import csv
 import io
 import itertools
 import os
-import sys
 import zipfile
 import xml.etree.cElementTree as etree
 
-PY2 = (sys.version_info.major == 2)
-
-if PY2:
-    from itertools import izip as zip
-
 import sqlalchemy as sa
-import sqlalchemy.orm
 import sqlalchemy.ext.declarative
+import sqlalchemy.orm
 
 from sqlalchemy import Column, Integer, Unicode
 from sqlalchemy.orm import relationship
@@ -95,7 +87,7 @@ def dbschema(metadata=Base.metadata, engine=ENGINE):
 def dump_sql(engine=ENGINE, encoding='utf-8'):
     filename = '%s.sql' % os.path.splitext(engine.url.database)[0]
     with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
-         io.open(filename, 'w', encoding=encoding) as f:
+         open(filename, 'w', encoding=encoding) as f:
         for line in dbapi_conn.iterdump():
             f.write('%s\n' % line)
     return filename
@@ -296,25 +288,18 @@ def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
          zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
         for table in metadata.sorted_tables:
             result = conn.execute(table.select())
-            with (io.BytesIO() if PY2 else io.StringIO()) as f:
+            with io.StringIO() as f:
                 writer = csv.writer(f)
                 writer.writerow(result.keys())
-                if PY2:
-                    for row in result:
-                        srow = [v.encode(encoding) if isinstance(v, unicode) else v
-                                for v in row]
-                        writer.writerow(srow)
-                    data = f.getvalue()
-                else:
-                    writer.writerows(result)
-                    data = f.getvalue().encode(encoding)
+                writer.writerows(result)
+                data = f.getvalue().encode(encoding)
             archive.writestr('%s.csv' % table.name, data)
     return filename
 
 
 def render_html(filename='paradigms.html', encoding='utf-8'):
     with contextlib.closing(Session()) as session,\
-         io.open(filename, 'w', encoding=encoding) as f:
+         open(filename, 'w', encoding=encoding) as f:
         query = session.query(Paradigm).join('cls')\
             .options(sa.orm.contains_eager('cls'),
                      sa.orm.subqueryload('cls', 'cells'),
