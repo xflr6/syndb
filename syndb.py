@@ -310,45 +310,49 @@ def render_html(filepath=PARADIGMS_HTML, *, encoding=ENCODING):
             .options(sa.orm.contains_eager('cls'),
                      sa.orm.subqueryload('cls', 'cells'),
                      sa.orm.subqueryload('contents'))
-        f.write('\n'.join(['<!doctype html>', '<html>',
-                           '<head><meta charset="%s"></head>' % encoding,
-                           '<body>', '']))
+        for pre in ['<!doctype html>', '<html>',
+                    f'<head><meta charset="{encoding}"></head>',
+                    '<body>']:
+            print(pre, file=f)
         for p in query:
-            f.write(html_paradigm(p))
-            f.write('\n\n')
-        f.write('\n'.join(['</body>', '</html>']))
+            html = html_paradigm(p)
+            print(html, file=f)
+            print(file=f)
+        for post in ['</body>', '</html>']:
+            print(post, file=f)
 
 
 def html_paradigm(paradigm):
-    result = [
-        '<h2>%s %s (%s)</h2>' % (paradigm.iso, paradigm.name, paradigm.cls.name),
-        '<table border="1">'
-    ]
-    contents = {cell: list(occ) for cell, occ in
-                itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
-    cmp = lambda a, b: (a > b) - (a < b)
-    for row, cells in itertools.groupby(paradigm.cls.cells, key=lambda c: c.row):
-        result.append('<tr>')
-        for cell in cells:
-            result.append('<th>%s</th>' % cell.label)
-            if cell.blind:
-                result.append('<td style="background-color:#ddd"></td>')
-            else:
-                occ = contents.get(cell, [])
-                slots = {kind: list(occ) for kind, occ in
-                         itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
-                pf = '-'.join(o.form for o in slots.get(-1, []))
-                if 0 in slots:
-                    assert len(slots[0]) == 1
-                    st = slots[0][0].form
+
+    def iterlines(paradigm):
+        yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
+        yield '<table border="1">'
+        contents = {cell: list(occ) for cell, occ in
+                    itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
+        cmp = lambda a, b: (a > b) - (a < b)
+        for row, cells in itertools.groupby(paradigm.cls.cells, key=lambda c: c.row):
+            yield'<tr>'
+            for cell in cells:
+                yield f'<th>{cell.label}</th>'
+                if cell.blind:
+                    yield '<td style="background-color:#ddd"></td>'
                 else:
-                    st = paradigm.stem
-                sf = '-'.join(o.form for o in slots.get(1, []))
-                forms = '-'.join(s for s in [pf, st, sf] if s)
-                result.append('<td>%s</td>' % (forms))
-        result.append('</tr>')
-    result.append('</table>')
-    return '\n'.join(result)
+                    occ = contents.get(cell, [])
+                    slots = {kind: list(occ) for kind, occ in
+                             itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
+                    pf = '-'.join(o.form for o in slots.get(-1, []))
+                    if 0 in slots:
+                        assert len(slots[0]) == 1
+                        st = slots[0][0].form
+                    else:
+                        st = paradigm.stem
+                    sf = '-'.join(o.form for o in slots.get(1, []))
+                    forms = '-'.join(s for s in [pf, st, sf] if s)
+                    yield f'<td>{forms}s</td>'
+            yield '</tr>'
+        yield '</table>'
+
+    return '\n'.join(iterlines(paradigm))
 
 
 if __name__ == '__main__':
