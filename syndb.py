@@ -32,30 +32,36 @@ DB_PATH = pathlib.Path('syndb.sqlite3')
 
 ENGINE = sa.create_engine(f'sqlite:///{DB_PATH}', echo=False)
 
+PARADIGMS_HTML = pathlib.Path('paradigms.html')
 
-def get_content_tree(filename=ODS_FILE, content='content.xml'):
+ENCODING = 'utf-8'
+
+
+def get_content_tree(filename=ODS_FILE, *, content='content.xml'):
     with zipfile.ZipFile(filename) as archive:
         result = etree.parse(archive.open(content))
     return result
 
 
-def load_tables(tree, ns=NAMESPACES):
+def get_node_text(node, *, _encoding='utf-8'):
+    return etree.tostring(node, _encoding, method='text').decode(_encoding)
+
+
+def load_tables(tree, *, ns=NAMESPACES):
     ns_table = '{{{table}}}'.format_map(ns)
-    result = {}
-    for table in tree.iterfind('office:body/office:spreadsheet/table:table', ns):
-        name = table.attrib[f'{ns_table}name']
-        rows = []
+
+    def iterrows(table):
         for r in table.iterfind('table:table-row', ns):
             cols = []
             for c in r.iterfind('table:table-cell', ns):
                 n = int(c.attrib.get(f'{ns_table}number-columns-repeated', '1'))
-                text = etree.tostring(c, 'utf-8', method='text').decode('utf-8')
-                cols.extend([text] * n)
+                cols.extend([get_node_text(c)] * n)
 
             if any(cols):
-                rows.append(tuple(cols))
-        result[name] = rows
-    return result
+                yield tuple(cols)
+
+    tables = tree.iterfind('office:body/office:spreadsheet/table:table', ns)
+    return {t.attrib[f'{ns_table}name']: list(iterrows(t)) for t in tables}
 
 
 @sa.event.listens_for(sa.engine.Engine, 'connect')
@@ -77,7 +83,7 @@ class BooleanZeroOne(sa.TypeDecorator):
 Base = sa.ext.declarative.declarative_base()
 
 
-def dbschema(metadata=Base.metadata, engine=ENGINE):
+def dbschema(metadata=Base.metadata, *, engine=ENGINE):
     def dump(sql):
         print(sql.compile(dialect=engine.dialect))
 
@@ -85,13 +91,12 @@ def dbschema(metadata=Base.metadata, engine=ENGINE):
     metadata.create_all(dumper, checkfirst=False)
 
 
-def dump_sql(engine=ENGINE, encoding='utf-8'):
-    db_path = pathlib.Path(engine.url.database)
-    filepath = db_path.with_suffix('.sql')
+def dump_sql(engine=ENGINE, *, encoding=ENCODING):
+    filepath = pathlib.Path(engine.url.database).with_suffix('.sql')
     with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
          filepath.open('w', encoding=encoding) as f:
         for line in dbapi_conn.iterdump():
-            f.write('%s\n' % line)
+            print(line, file=f)
     return filepath
 
 
@@ -102,7 +107,8 @@ class Language(Base):
 
     __tablename__ = 'language'
 
-    iso = Column(Unicode(3), sa.CheckConstraint('length(iso) = 3'), primary_key=True)
+    iso = Column(Unicode(3), sa.CheckConstraint('length(iso) = 3'),
+                 primary_key=True)
 
     name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
 
@@ -128,9 +134,7 @@ class ParadigmClass(Base):
     nrows = Column(Integer, sa.CheckConstraint('nrows > 0'), nullable=False)
     ncols = Column(Integer, sa.CheckConstraint('ncols > 0'), nullable=False)
 
-    __table_args__ = (
-        sa.CheckConstraint('ncells = nrows * ncols'),
-    )
+    __table_args__ = (sa.CheckConstraint('ncells = nrows * ncols'),)
 
     cells = relationship('ParadigmClassCell', back_populates='cls',
                          order_by='(ParadigmClassCell.row,'
@@ -268,7 +272,7 @@ class SyncretismCell(Base):
     cell = relationship('ParadigmClassCell')
 
 
-def insert_tables(tables, engine=ENGINE):
+def insert_tables(tables, *, engine=ENGINE):
     db_path = pathlib.Path(engine.url.database)
     if db_path.exists():
         db_path.unlink()
@@ -277,16 +281,15 @@ def insert_tables(tables, engine=ENGINE):
     with engine.begin() as conn:
         for cls in [Reference, Language, ParadigmClass, ParadigmClassCell,
                     Paradigm, ParadigmContent, Syncretism, SyncretismCell]:
-            table = tables[cls.__tablename__]
-            header = [h for h in table[0] if h]
-            rows = ((v if v.strip() else None for v in row) for row in table[1:])
+            header, *rows = tables[cls.__tablename__]
+            header = [h for h in header if h]
+            rows = ((v.strip() or None for v in row) for row in rows)
             params = [dict(zip(header, r)) for r in rows]
             conn.execute(sa.insert(cls), params)
 
 
-def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
-    db_path = pathlib.Path(engine.url.database)
-    filepath = db_path.with_suffix('.zip')
+def export_csv(metadata=Base.metadata, *, engine=ENGINE, encoding=ENCODING):
+    filepath = pathlib.Path(engine.url.database).with_suffix('.zip')
     with engine.connect() as conn,\
          zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as archive:
         for table in metadata.sorted_tables:
@@ -300,9 +303,9 @@ def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
     return filepath
 
 
-def render_html(filename='paradigms.html', encoding='utf-8'):
+def render_html(filepath=PARADIGMS_HTML, *, encoding=ENCODING):
     with contextlib.closing(Session()) as session,\
-         open(filename, 'w', encoding=encoding) as f:
+         filepath.open('w', encoding=encoding) as f:
         query = session.query(Paradigm).join('cls')\
             .options(sa.orm.contains_eager('cls'),
                      sa.orm.subqueryload('cls', 'cells'),
