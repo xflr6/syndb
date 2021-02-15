@@ -7,9 +7,9 @@ import contextlib
 import csv
 import io
 import itertools
-import os
+import pathlib
 import zipfile
-import xml.etree.cElementTree as etree
+import xml.etree.ElementTree as etree
 
 import sqlalchemy as sa
 import sqlalchemy.ext.declarative
@@ -23,14 +23,14 @@ __author__ = 'Sebastian Bank <sebastian.bank@uni-leipzig.de>'
 __license__ = 'MIT, see LICENSE.txt'
 __copyright__ = 'Copyright (c) 2013,2017 Sebastian Bank'
 
-ODS_FILE = 'Datenbank2.ods'
+ODS_FILE = pathlib.Path('Datenbank2.ods')
 
 NAMESPACES = {'office': 'urn:oasis:names:tc:opendocument:xmlns:office:1.0',
               'table': 'urn:oasis:names:tc:opendocument:xmlns:table:1.0'}
 
-DB_FILE = 'syndb.sqlite3'
+DB_PATH = pathlib.Path('syndb.sqlite3')
 
-ENGINE = sa.create_engine('sqlite:///%s' % DB_FILE, echo=False)
+ENGINE = sa.create_engine(f'sqlite:///{DB_PATH}', echo=False)
 
 
 def get_content_tree(filename=ODS_FILE, content='content.xml'):
@@ -40,14 +40,15 @@ def get_content_tree(filename=ODS_FILE, content='content.xml'):
 
 
 def load_tables(tree, ns=NAMESPACES):
+    ns_table = '{{{table}}}'.format_map(ns)
     result = {}
     for table in tree.iterfind('office:body/office:spreadsheet/table:table', ns):
-        name = table.attrib['{%(table)s}name' % ns]
+        name = table.attrib[f'{ns_table}name']
         rows = []
         for r in table.iterfind('table:table-row', ns):
             cols = []
             for c in r.iterfind('table:table-cell', ns):
-                n = int(c.attrib.get('{%(table)s}number-columns-repeated' % ns, '1'))
+                n = int(c.attrib.get(f'{ns_table}number-columns-repeated', '1'))
                 text = etree.tostring(c, 'utf-8', method='text').decode('utf-8')
                 cols.extend([text] * n)
 
@@ -85,12 +86,13 @@ def dbschema(metadata=Base.metadata, engine=ENGINE):
 
 
 def dump_sql(engine=ENGINE, encoding='utf-8'):
-    filename = '%s.sql' % os.path.splitext(engine.url.database)[0]
+    db_path = pathlib.Path(engine.url.database)
+    filepath = db_path.with_suffix('.sql')
     with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
-         open(filename, 'w', encoding=encoding) as f:
+         filepath.open('w', encoding=encoding) as f:
         for line in dbapi_conn.iterdump():
             f.write('%s\n' % line)
-    return filename
+    return filepath
 
 
 Session = sa.orm.sessionmaker(bind=ENGINE)
@@ -148,7 +150,8 @@ class ParadigmClassCell(Base):
     row = Column(Integer, sa.CheckConstraint('"row" > 0'), nullable=False)
     col = Column(Integer, sa.CheckConstraint('col > 0'), nullable=False)
 
-    blind = Column(BooleanZeroOne, nullable=False, default=False)
+    blind = Column(BooleanZeroOne(create_constraint=True), nullable=False,
+                   default=False)
 
     label = Column(Unicode, sa.CheckConstraint("label != ''"), nullable=False)
 
@@ -160,10 +163,8 @@ class ParadigmClassCell(Base):
     number_spec = Column(Unicode)
     person_spec = Column(Unicode)
 
-    __table_args__ = (
-        sa.UniqueConstraint(cls_id, row, col),
-        sa.UniqueConstraint(cls_id, label),
-    )
+    __table_args__ = (sa.UniqueConstraint(cls_id, row, col),
+                      sa.UniqueConstraint(cls_id, label))
 
     cls = relationship('ParadigmClass')
 
@@ -172,9 +173,11 @@ class Reference(Base):
 
     __tablename__ = 'reference'
 
-    bibkey = Column(Unicode(3), sa.CheckConstraint("bibkey != ''"), primary_key=True)
+    bibkey = Column(Unicode(3), sa.CheckConstraint("bibkey != ''"),
+                    primary_key=True)
 
-    entry = Column(Unicode, sa.CheckConstraint("entry != ''"), nullable=False)
+    entry = Column(Unicode, sa.CheckConstraint("entry != ''"),
+                   nullable=False)
 
 
 class Paradigm(Base):
@@ -192,9 +195,7 @@ class Paradigm(Base):
     reference_bibkey = Column(sa.ForeignKey('reference.bibkey'))
     pages = Column(Unicode)
 
-    __table_args__ = (
-        sa.UniqueConstraint(iso, name),
-    )
+    __table_args__ = (sa.UniqueConstraint(iso, name),)
 
     language = relationship('Language', back_populates='paradigms')
 
@@ -218,14 +219,14 @@ class ParadigmContent(Base):
     position = Column(Integer, primary_key=True)
 
     form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
-    kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
+    kind = Column(sa.Enum('stem', 'affix', 'clitic', create_constraint=True),
+                  nullable=False)
 
-    __table_args__ = (
-        sa.ForeignKeyConstraint([cell_cls, cell_index],
-                                ['clscell.cls_id', 'clscell.index']),
-        sa.CheckConstraint("(position = 0) OR (kind != 'stem')"),
-        #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),
-    )
+    __table_args__ = (sa.ForeignKeyConstraint([cell_cls, cell_index],
+                                              ['clscell.cls_id',
+                                               'clscell.index']),
+                      sa.CheckConstraint("(position = 0) OR (kind != 'stem')"),)
+                      #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),)
 
     paradigm = relationship('Paradigm', back_populates='contents')
 
@@ -241,7 +242,8 @@ class Syncretism(Base):
     paradigm_id = Column(sa.ForeignKey('paradigm.id'))
 
     form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
-    kind = Column(sa.Enum('stem', 'affix', 'clitic'), nullable=False)
+    kind = Column(sa.Enum('stem', 'affix', 'clitic', create_constraint=True),
+                  nullable=False)
 
     paradigm = relationship('Paradigm', back_populates='syncretisms')
 
@@ -257,10 +259,9 @@ class SyncretismCell(Base):
     cell_cls = Column(Integer, primary_key=True)
     cell_index = Column(Integer, primary_key=True)
 
-    __table_args__ = (
-        sa.ForeignKeyConstraint([cell_cls, cell_index],
-                                ['clscell.cls_id', 'clscell.index']),
-    )
+    __table_args__ = (sa.ForeignKeyConstraint([cell_cls, cell_index],
+                                              ['clscell.cls_id',
+                                               'clscell.index']),)
 
     syncretism = relationship('Syncretism', back_populates='cells')
 
@@ -268,8 +269,9 @@ class SyncretismCell(Base):
 
 
 def insert_tables(tables, engine=ENGINE):
-    if os.path.exists(engine.url.database):
-        os.remove(engine.url.database)
+    db_path = pathlib.Path(engine.url.database)
+    if db_path.exists():
+        db_path.unlink()
 
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
@@ -283,9 +285,10 @@ def insert_tables(tables, engine=ENGINE):
 
 
 def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
-    filename = '%s.zip' % os.path.splitext(engine.url.database)[0]
+    db_path = pathlib.Path(engine.url.database)
+    filepath = db_path.with_suffix('.zip')
     with engine.connect() as conn,\
-         zipfile.ZipFile(filename, 'w', zipfile.ZIP_DEFLATED) as archive:
+         zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as archive:
         for table in metadata.sorted_tables:
             result = conn.execute(table.select())
             with io.StringIO() as f:
@@ -294,7 +297,7 @@ def export_csv(metadata=Base.metadata, engine=ENGINE, encoding='utf-8'):
                 writer.writerows(result)
                 data = f.getvalue().encode(encoding)
             archive.writestr('%s.csv' % table.name, data)
-    return filename
+    return filepath
 
 
 def render_html(filename='paradigms.html', encoding='utf-8'):
