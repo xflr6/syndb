@@ -315,44 +315,40 @@ def render_html(filepath=PARADIGMS_HTML, *, encoding=ENCODING):
                     '<body>']:
             print(pre, file=f)
         for p in query:
-            html = html_paradigm(p)
+            html = '\n'.join(iterlines(p))
             print(html, file=f)
             print(file=f)
         for post in ['</body>', '</html>']:
             print(post, file=f)
 
 
-def html_paradigm(paradigm):
-
-    def iterlines(paradigm):
-        yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
-        yield '<table border="1">'
-        contents = {cell: list(occ) for cell, occ in
-                    itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
-        cmp = lambda a, b: (a > b) - (a < b)
-        for row, cells in itertools.groupby(paradigm.cls.cells, key=lambda c: c.row):
-            yield'<tr>'
-            for cell in cells:
-                yield f'<th>{cell.label}</th>'
-                if cell.blind:
-                    yield '<td style="background-color:#ddd"></td>'
+def iterlines(paradigm):
+    yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
+    yield '<table border="1">'
+    contents = {cell: list(occ) for cell, occ in
+                itertools.groupby(paradigm.contents, key=lambda c: c.cell)}
+    cmp = lambda a, b: (a > b) - (a < b)
+    for row, cells in itertools.groupby(paradigm.cls.cells, key=lambda c: c.row):
+        yield'<tr>'
+        for cell in cells:
+            yield f'<th>{cell.label}</th>'
+            if cell.blind:
+                yield '<td style="background-color:#ddd"></td>'
+            else:
+                occ = contents.get(cell, [])
+                slots = {kind: list(occ) for kind, occ in
+                         itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
+                pf = '-'.join(o.form for o in slots.get(-1, []))
+                if 0 in slots:
+                    assert len(slots[0]) == 1
+                    st = slots[0][0].form
                 else:
-                    occ = contents.get(cell, [])
-                    slots = {kind: list(occ) for kind, occ in
-                             itertools.groupby(occ, key=lambda o: cmp(o.position, 0))}
-                    pf = '-'.join(o.form for o in slots.get(-1, []))
-                    if 0 in slots:
-                        assert len(slots[0]) == 1
-                        st = slots[0][0].form
-                    else:
-                        st = paradigm.stem
-                    sf = '-'.join(o.form for o in slots.get(1, []))
-                    forms = '-'.join(s for s in [pf, st, sf] if s)
-                    yield f'<td>{forms}s</td>'
-            yield '</tr>'
-        yield '</table>'
-
-    return '\n'.join(iterlines(paradigm))
+                    st = paradigm.stem
+                sf = '-'.join(o.form for o in slots.get(1, []))
+                forms = '-'.join(s for s in [pf, st, sf] if s)
+                yield f'<td>{forms}s</td>'
+        yield '</tr>'
+    yield '</table>'
 
 
 if __name__ == '__main__':
