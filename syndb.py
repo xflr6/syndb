@@ -299,7 +299,7 @@ def export_csv(metadata=Base.metadata, *, engine=ENGINE, encoding=ENCODING):
                 writer.writerow(result.keys())
                 writer.writerows(result)
                 data = f.getvalue().encode(encoding)
-            archive.writestr('%s.csv' % table.name, data)
+            archive.writestr(f'{table.name}s.csv', data)
     return filepath
 
 
