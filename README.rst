@@ -1,6 +1,8 @@
 Syndb
 =====
 
+|Build|
+
 This Python script loads a hand-curated database of morphological paradigms
 and syncretisms from an `ODS spreadsheet`_ with multiple sheets into SQLite_
 and exports (converts) the database into the following files:
@@ -23,3 +25,7 @@ Dependencies
 .. _Python: https://www.python.org
 .. _ElementTree: https://docs.python.org/library/xml.etree.elementtree.html
 .. _SQLAlchemy: https://www.sqlalchemy.org/
+
+.. |Build| image:: https://github.com/xflr6/syndb/actions/workflows/build.yaml/badge.svg
+    :target: https://github.com/xflr6/syndb/actions/workflows/build.yaml?query=branch%3Amaster
+    :alt: Build

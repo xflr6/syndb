@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # syndb.py - paradigm/syncretism database from ods spreadsheet tables
 
 """Morphological paradigm/syncretism database from ODS spreadsheet tables."""
