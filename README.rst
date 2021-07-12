@@ -26,6 +26,6 @@ Dependencies
 .. _ElementTree: https://docs.python.org/library/xml.etree.elementtree.html
 .. _SQLAlchemy: https://www.sqlalchemy.org/
 
-.. |Build| image:: https://github.com/xflr6/syndb/actions/workflows/build.yaml/badge.svg
+.. |Build| image:: https://github.com/xflr6/syndb/actions/workflows/build.yaml/badge.svg?branch=master
     :target: https://github.com/xflr6/syndb/actions/workflows/build.yaml?query=branch%3Amaster
     :alt: Build
