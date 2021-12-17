@@ -16,7 +16,7 @@ Dependencies
 ------------
 
 - Python_ 3.6+ (including ElementTree_ used for ODS reading)
-- SQLAlchemy_
+- SQLAlchemy_ 1.4+
 
 
 .. _ODS spreadsheet: https://en.wikipedia.org/wiki/OpenDocument

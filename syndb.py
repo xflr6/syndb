@@ -4,17 +4,19 @@
 
 import contextlib
 import csv
+import datetime
 import io
 import itertools
+import os
 import pathlib
-import zipfile
+import sys
+import typing
 import xml.etree.ElementTree as etree
+import zipfile
 
 import sqlalchemy as sa
-import sqlalchemy.ext.declarative
+from sqlalchemy import Column, Integer, String
 import sqlalchemy.orm
-
-from sqlalchemy import Column, Integer, Unicode
 from sqlalchemy.orm import relationship
 
 __title__ = 'syndb.py'
@@ -31,30 +33,35 @@ DB_PATH = pathlib.Path('syndb.sqlite3')
 
 ENGINE = sa.create_engine(f'sqlite:///{DB_PATH}', echo=False)
 
+REGISTRY = sa.orm.registry()
+
 PARADIGMS_HTML = pathlib.Path('paradigms.html')
 
 ENCODING = 'utf-8'
 
 
-def get_content_tree(filename=ODS_FILE, *, content='content.xml'):
+def get_content_tree(filename: typing.Union[os.PathLike, str] = ODS_FILE, *,
+                     content: str = 'content.xml') -> etree.ElementTree:
     with zipfile.ZipFile(filename) as archive:
         result = etree.parse(archive.open(content))
     return result
 
 
-def get_node_text(node, *, _encoding='utf-8'):
-    return etree.tostring(node, _encoding, method='text').decode(_encoding)
+def get_element_text(element: etree.Element) -> str:
+    return etree.tostring(element, 'utf-8', method='text').decode('utf-8')
 
 
-def load_tables(tree, *, ns=NAMESPACES):
+def load_tables(tree: etree.ElementTree, *,
+                ns: typing.Mapping[str, str] = NAMESPACES
+                ) -> typing.Dict[str, typing.List[typing.Tuple[str, ...]]]:
     ns_table = '{{{table}}}'.format_map(ns)
 
-    def iterrows(table):
+    def iterrows(table: etree.Element) -> typing.Iterator[typing.Tuple[str, ...]]:
         for r in table.iterfind('table:table-row', ns):
             cols = []
             for c in r.iterfind('table:table-cell', ns):
                 n = int(c.attrib.get(f'{ns_table}number-columns-repeated', '1'))
-                cols.extend([get_node_text(c)] * n)
+                cols.extend([get_element_text(c)] * n)
 
             if any(cols):
                 yield tuple(cols)
@@ -64,7 +71,7 @@ def load_tables(tree, *, ns=NAMESPACES):
 
 
 @sa.event.listens_for(sa.engine.Engine, 'connect')
-def set_sqlite_pragma(dbapi_conn, connection_record):
+def set_sqlite_pragma(dbapi_conn, connection_record) -> None:
     with contextlib.closing(dbapi_conn.cursor()) as cursor:
         cursor.execute('PRAGMA foreign_keys = ON')
 
@@ -79,18 +86,17 @@ class BooleanZeroOne(sa.TypeDecorator):
         return value
 
 
-Base = sa.ext.declarative.declarative_base()
-
-
-def dbschema(metadata=Base.metadata, *, engine=ENGINE):
+def dbschema(metadata: sa.MetaData = REGISTRY.metadata, *,
+             engine: sa.engine.Engine = ENGINE) -> None:
     def dump(sql):
         print(sql.compile(dialect=engine.dialect))
 
-    dumper = sa.create_engine(engine.url, strategy='mock', executor=dump)
-    metadata.create_all(dumper, checkfirst=False)
+    mock_engine = sa.create_mock_engine(engine.url, executor=dump)
+    metadata.create_all(mock_engine, checkfirst=False)
 
 
-def dump_sql(engine=ENGINE, *, encoding=ENCODING):
+def dump_sql(engine: sa.engine.Engine = ENGINE, *,
+             encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.sql')
     with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
          filepath.open('w', encoding=encoding) as f:
@@ -102,32 +108,34 @@ def dump_sql(engine=ENGINE, *, encoding=ENCODING):
 Session = sa.orm.sessionmaker(bind=ENGINE)
 
 
-class Language(Base):
+@REGISTRY.mapped
+class Language:
 
     __tablename__ = 'language'
 
-    iso = Column(Unicode(3), sa.CheckConstraint('length(iso) = 3'),
+    iso = Column(String(3), sa.CheckConstraint('length(iso) = 3'),
                  primary_key=True)
 
-    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+    name = Column(String, sa.CheckConstraint("name != ''"), nullable=False)
 
-    family = Column(Unicode)
-    stock = Column(Unicode)
-    country = Column(Unicode)
-    area = Column(Unicode)
+    family = Column(String)
+    stock = Column(String)
+    country = Column(String)
+    area = Column(String)
     speakers = Column(Integer, sa.CheckConstraint('speakers >= 0'))
 
     paradigms = relationship('Paradigm', back_populates='language',
                              order_by='Paradigm.name')
 
 
-class ParadigmClass(Base):
+@REGISTRY.mapped
+class ParadigmClass:
 
     __tablename__ = 'cls'
 
     id = Column(Integer, primary_key=True)
 
-    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False, unique=True)
+    name = Column(String, sa.CheckConstraint("name != ''"), nullable=False, unique=True)
 
     ncells = Column(Integer, nullable=False)
     nrows = Column(Integer, sa.CheckConstraint('nrows > 0'), nullable=False)
@@ -143,7 +151,8 @@ class ParadigmClass(Base):
                              order_by='(Paradigm.iso, Paradigm.name)')
 
 
-class ParadigmClassCell(Base):
+@REGISTRY.mapped
+class ParadigmClassCell:
 
     __tablename__ = 'clscell'
 
@@ -156,34 +165,36 @@ class ParadigmClassCell(Base):
     blind = Column(BooleanZeroOne(create_constraint=True), nullable=False,
                    default=False)
 
-    label = Column(Unicode, sa.CheckConstraint("label != ''"), nullable=False)
+    label = Column(String, sa.CheckConstraint("label != ''"), nullable=False)
 
-    case = Column(Unicode)
-    number = Column(Unicode)
-    definiteness = Column(Unicode)
-    person = Column(Unicode)
-    case_spec = Column(Unicode)
-    number_spec = Column(Unicode)
-    person_spec = Column(Unicode)
+    case = Column(String)
+    number = Column(String)
+    definiteness = Column(String)
+    person = Column(String)
+    case_spec = Column(String)
+    number_spec = Column(String)
+    person_spec = Column(String)
 
     __table_args__ = (sa.UniqueConstraint(cls_id, row, col),
                       sa.UniqueConstraint(cls_id, label))
 
-    cls = relationship('ParadigmClass')
+    cls = relationship('ParadigmClass', innerjoin=True)
 
 
-class Reference(Base):
+@REGISTRY.mapped
+class Reference:
 
     __tablename__ = 'reference'
 
-    bibkey = Column(Unicode(3), sa.CheckConstraint("bibkey != ''"),
+    bibkey = Column(String(3), sa.CheckConstraint("bibkey != ''"),
                     primary_key=True)
 
-    entry = Column(Unicode, sa.CheckConstraint("entry != ''"),
+    entry = Column(String, sa.CheckConstraint("entry != ''"),
                    nullable=False)
 
 
-class Paradigm(Base):
+@REGISTRY.mapped
+class Paradigm:
 
     __tablename__ = 'paradigm'
 
@@ -191,18 +202,18 @@ class Paradigm(Base):
 
     iso = Column(sa.ForeignKey('language.iso'), nullable=False)
     cls_id = Column(sa.ForeignKey('cls.id'), nullable=False)
-    name = Column(Unicode, sa.CheckConstraint("name != ''"), nullable=False)
+    name = Column(String, sa.CheckConstraint("name != ''"), nullable=False)
 
-    stem = Column(Unicode, sa.CheckConstraint("stem != ''"), nullable=False)
-    gloss = Column(Unicode, sa.CheckConstraint("gloss != ''"), nullable=False)
+    stem = Column(String, sa.CheckConstraint("stem != ''"), nullable=False)
+    gloss = Column(String, sa.CheckConstraint("gloss != ''"), nullable=False)
     reference_bibkey = Column(sa.ForeignKey('reference.bibkey'))
-    pages = Column(Unicode)
+    pages = Column(String)
 
     __table_args__ = (sa.UniqueConstraint(iso, name),)
 
-    language = relationship('Language', back_populates='paradigms')
+    language = relationship('Language', innerjoin=True, back_populates='paradigms')
 
-    cls = relationship('ParadigmClass', back_populates='paradigms')
+    cls = relationship('ParadigmClass', innerjoin=True, back_populates='paradigms')
 
     contents = relationship('ParadigmContent', back_populates='paradigm',
                             order_by='(ParadigmContent.cell_index,'
@@ -212,7 +223,8 @@ class Paradigm(Base):
                                order_by='Syncretism.form')
 
 
-class ParadigmContent(Base):
+@REGISTRY.mapped
+class ParadigmContent:
 
     __tablename__ = 'paradigmcontent'
 
@@ -221,7 +233,7 @@ class ParadigmContent(Base):
     cell_index = Column(Integer, primary_key=True)
     position = Column(Integer, primary_key=True)
 
-    form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
+    form = Column(String, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic', create_constraint=True),
                   nullable=False)
 
@@ -231,12 +243,13 @@ class ParadigmContent(Base):
                       sa.CheckConstraint("(position = 0) OR (kind != 'stem')"),)
                       #sa.CheckConstraint("(position = 0) = (kind = 'stem')"),)
 
-    paradigm = relationship('Paradigm', back_populates='contents')
+    paradigm = relationship('Paradigm', innerjoin=True, back_populates='contents')
 
     cell = relationship('ParadigmClassCell')
 
 
-class Syncretism(Base):
+@REGISTRY.mapped
+class Syncretism:
 
     __tablename__ = 'syncretism'
 
@@ -244,17 +257,18 @@ class Syncretism(Base):
 
     paradigm_id = Column(sa.ForeignKey('paradigm.id'))
 
-    form = Column(Unicode, sa.CheckConstraint("form != ''"), nullable=False)
+    form = Column(String, sa.CheckConstraint("form != ''"), nullable=False)
     kind = Column(sa.Enum('stem', 'affix', 'clitic', create_constraint=True),
                   nullable=False)
 
-    paradigm = relationship('Paradigm', back_populates='syncretisms')
+    paradigm = relationship('Paradigm', innerjoin=True, back_populates='syncretisms')
 
     cells = relationship('SyncretismCell', back_populates='syncretism',
                          order_by='SyncretismCell.cell_index')
 
 
-class SyncretismCell(Base):
+@REGISTRY.mapped
+class SyncretismCell:
 
     __tablename__ = 'syncretismcell'
 
@@ -266,17 +280,18 @@ class SyncretismCell(Base):
                                               ['clscell.cls_id',
                                                'clscell.index']),)
 
-    syncretism = relationship('Syncretism', back_populates='cells')
+    syncretism = relationship('Syncretism', innerjoin=True, back_populates='cells')
 
     cell = relationship('ParadigmClassCell')
 
 
-def insert_tables(tables, *, engine=ENGINE):
+def insert_tables(tables: typing.Dict[str, typing.Sequence[typing.Sequence[str]]], *,
+                  engine: sa.engine.Engine = ENGINE) -> None:
     db_path = pathlib.Path(engine.url.database)
     if db_path.exists():
         db_path.unlink()
 
-    Base.metadata.create_all(engine)
+    REGISTRY.metadata.create_all(engine)
     with engine.begin() as conn:
         for cls in [Reference, Language, ParadigmClass, ParadigmClassCell,
                     Paradigm, ParadigmContent, Syncretism, SyncretismCell]:
@@ -287,41 +302,50 @@ def insert_tables(tables, *, engine=ENGINE):
             conn.execute(sa.insert(cls), params)
 
 
-def export_csv(metadata=Base.metadata, *, engine=ENGINE, encoding=ENCODING):
+def export_csv(metadata: sa.MetaData = REGISTRY.metadata, *,
+               engine: sa.engine.Engine = ENGINE,
+               encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.zip')
-    with engine.connect() as conn,\
-         zipfile.ZipFile(filepath, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for table in metadata.sorted_tables:
+    date_time = datetime.datetime.now().timetuple()[:6]
+    with engine.connect() as conn, zipfile.ZipFile(filepath, 'w') as archive:
+        for table in sorted(metadata.sorted_tables, key=lambda x: x.name):
             result = conn.execute(table.select())
-            with io.StringIO() as f:
+            info = zipfile.ZipInfo(f'{table.name}.csv', date_time=date_time)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            with io.TextIOWrapper(archive.open(info, 'w'),
+                                  encoding=encoding, newline='',
+                                  line_buffering=True) as f:
                 writer = csv.writer(f)
                 writer.writerow(result.keys())
                 writer.writerows(result)
-                data = f.getvalue().encode(encoding)
-            archive.writestr(f'{table.name}s.csv', data)
     return filepath
 
 
-def render_html(filepath=PARADIGMS_HTML, *, encoding=ENCODING):
-    with contextlib.closing(Session()) as session,\
-         filepath.open('w', encoding=encoding) as f:
-        query = session.query(Paradigm).join('cls')\
-            .options(sa.orm.contains_eager('cls'),
-                     sa.orm.subqueryload('cls', 'cells'),
-                     sa.orm.subqueryload('contents'))
-        for pre in ['<!doctype html>', '<html>',
-                    f'<head><meta charset="{encoding}"></head>',
-                    '<body>']:
-            print(pre, file=f)
-        for p in query:
-            html = '\n'.join(iterlines(p))
-            print(html, file=f)
-            print(file=f)
-        for post in ['</body>', '</html>']:
-            print(post, file=f)
+def render_html(filepath: pathlib.Path = PARADIGMS_HTML, *,
+                encoding: str = ENCODING) -> None:
+    query = (sa.select(Paradigm)
+             .options(sa.orm.joinedload(Paradigm.cls).selectinload(ParadigmClass.cells),
+                      sa.orm.selectinload(Paradigm.contents)))
+    with Session() as session, filepath.open('w', encoding=encoding) as f:
+        paradigms = session.execute(query).scalars()
+        for line in iterhtml(paradigms, encoding=encoding):
+            print(line, file=f)
 
 
-def iterlines(paradigm):
+def iterhtml(paradigms: typing.Iterable[Paradigm], *,
+             encoding: str) -> typing.Iterator[str]:
+    yield '<!doctype html>'
+    yield '<html>'
+    yield f'<head><meta charset="{encoding}"></head>'
+    yield '<body>'
+    for p in paradigms:
+        yield from iterlines(p)
+        yield ''
+    yield '</body>'
+    yield '</html>'
+
+
+def iterlines(paradigm: Paradigm) -> typing.Iterator[str]:
     yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
     yield '<table border="1">'
     contents = {cell: list(occ) for cell, occ in
@@ -350,10 +374,16 @@ def iterlines(paradigm):
     yield '</table>'
 
 
-if __name__ == '__main__':
+def main() -> None:
     #dbschema()
-    tables = load_tables(get_content_tree())
+    tree = get_content_tree()
+    tables = load_tables(tree)
     insert_tables(tables)
     dump_sql()
     export_csv()
     render_html()
+    return None
+
+
+if __name__ == '__main__':
+    sys.exit(main())
