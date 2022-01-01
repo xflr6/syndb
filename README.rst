@@ -15,7 +15,7 @@ and exports (converts) the database into the following files:
 Dependencies
 ------------
 
-- Python_ 3.6+ (including ElementTree_ used for ODS reading)
+- Python_ 3.7+ (including ElementTree_ used for ODS reading)
 - SQLAlchemy_ 1.4+
 
 
