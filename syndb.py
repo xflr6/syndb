@@ -2,6 +2,7 @@
 
 """Morphological paradigm/syncretism database from ODS spreadsheet tables."""
 
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 import contextlib
 import csv
 import datetime
@@ -10,7 +11,7 @@ import itertools
 import os
 import pathlib
 import sys
-import typing
+from typing import Union
 import xml.etree.ElementTree as etree
 import zipfile
 
@@ -40,10 +41,10 @@ PARADIGMS_HTML = pathlib.Path('paradigms.html')
 ENCODING = 'utf-8'
 
 
-def get_content_tree(filename: typing.Union[os.PathLike, str] = ODS_FILE, *,
+def get_content_tree(filename: Union[os.PathLike, str] = ODS_FILE, *,
                      content: str = 'content.xml') -> etree.ElementTree:
-    with zipfile.ZipFile(filename) as archive:
-        result = etree.parse(archive.open(content))
+    with zipfile.ZipFile(filename) as archive, archive.open(content) as f:
+        result = etree.parse(f)
     return result
 
 
@@ -52,11 +53,11 @@ def get_element_text(element: etree.Element) -> str:
 
 
 def load_tables(tree: etree.ElementTree, *,
-                ns: typing.Mapping[str, str] = NAMESPACES
-                ) -> typing.Dict[str, typing.List[typing.Tuple[str, ...]]]:
+                ns: Mapping[str, str] = NAMESPACES
+                ) -> dict[str, list[tuple[str, ...]]]:
     ns_table = '{{{table}}}'.format_map(ns)
 
-    def iterrows(table: etree.Element) -> typing.Iterator[typing.Tuple[str, ...]]:
+    def iterrows(table: etree.Element) -> Iterator[tuple[str, ...]]:
         for r in table.iterfind('table:table-row', ns):
             cols = []
             for c in r.iterfind('table:table-cell', ns):
@@ -285,7 +286,7 @@ class SyncretismCell:
     cell = relationship('ParadigmClassCell')
 
 
-def insert_tables(tables: typing.Dict[str, typing.Sequence[typing.Sequence[str]]], *,
+def insert_tables(tables: dict[str, Sequence[Sequence[str]]], *,
                   engine: sa.engine.Engine = ENGINE) -> None:
     db_path = pathlib.Path(engine.url.database)
     if db_path.exists():
@@ -332,8 +333,7 @@ def render_html(filepath: pathlib.Path = PARADIGMS_HTML, *,
             print(line, file=f)
 
 
-def iterhtml(paradigms: typing.Iterable[Paradigm], *,
-             encoding: str) -> typing.Iterator[str]:
+def iterhtml(paradigms: Iterable[Paradigm], *, encoding: str) -> Iterator[str]:
     yield '<!doctype html>'
     yield '<html>'
     yield f'<head><meta charset="{encoding}"></head>'
@@ -345,7 +345,7 @@ def iterhtml(paradigms: typing.Iterable[Paradigm], *,
     yield '</html>'
 
 
-def iterlines(paradigm: Paradigm) -> typing.Iterator[str]:
+def iterlines(paradigm: Paradigm) -> Iterator[str]:
     yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
     yield '<table border="1">'
     contents = {cell: list(occ) for cell, occ in
