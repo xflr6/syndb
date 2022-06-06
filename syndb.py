@@ -307,6 +307,7 @@ def export_csv(metadata: sa.MetaData = REGISTRY.metadata, *,
                engine: sa.engine.Engine = ENGINE,
                encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.zip')
+    # zipfile only supports naive, use local time
     date_time = datetime.datetime.now().timetuple()[:6]
     with engine.connect() as conn, zipfile.ZipFile(filepath, 'w') as archive:
         for table in sorted(metadata.sorted_tables, key=lambda x: x.name):
