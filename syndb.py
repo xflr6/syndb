@@ -41,18 +41,18 @@ PARADIGMS_HTML = pathlib.Path('paradigms.html')
 ENCODING = 'utf-8'
 
 
-def get_content_tree(filename: Union[os.PathLike, str] = ODS_FILE, *,
+def get_content_tree(filename: Union[os.PathLike, str] = ODS_FILE, /, *,
                      content: str = 'content.xml') -> etree.ElementTree:
     with zipfile.ZipFile(filename) as archive, archive.open(content) as f:
         result = etree.parse(f)
     return result
 
 
-def get_element_text(element: etree.Element) -> str:
+def get_element_text(element: etree.Element, /) -> str:
     return etree.tostring(element, 'utf-8', method='text').decode('utf-8')
 
 
-def load_tables(tree: etree.ElementTree, *,
+def load_tables(tree: etree.ElementTree, /, *,
                 ns: Mapping[str, str] = NAMESPACES
                 ) -> dict[str, list[tuple[str, ...]]]:
     ns_table = '{{{table}}}'.format_map(ns)
@@ -87,16 +87,16 @@ class BooleanZeroOne(sa.TypeDecorator):
         return value
 
 
-def dbschema(metadata: sa.MetaData = REGISTRY.metadata, *,
+def dbschema(metadata: sa.MetaData = REGISTRY.metadata, /, *,
              engine: sa.engine.Engine = ENGINE) -> None:
-    def dump(sql):
+    def print_sql(sql, *_, **__):
         print(sql.compile(dialect=engine.dialect))
 
-    mock_engine = sa.create_mock_engine(engine.url, executor=dump)
+    mock_engine = sa.create_mock_engine(engine.url, executor=print_sql)
     metadata.create_all(mock_engine, checkfirst=False)
 
 
-def dump_sql(engine: sa.engine.Engine = ENGINE, *,
+def dump_sql(engine: sa.engine.Engine = ENGINE, /, *,
              encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.sql')
     with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
@@ -323,7 +323,7 @@ def export_csv(metadata: sa.MetaData = REGISTRY.metadata, *,
     return filepath
 
 
-def render_html(filepath: pathlib.Path = PARADIGMS_HTML, *,
+def render_html(filepath: pathlib.Path = PARADIGMS_HTML, /, *,
                 encoding: str = ENCODING) -> None:
     query = (sa.select(Paradigm)
              .options(sa.orm.joinedload(Paradigm.cls).selectinload(ParadigmClass.cells),
@@ -334,7 +334,7 @@ def render_html(filepath: pathlib.Path = PARADIGMS_HTML, *,
             print(line, file=f)
 
 
-def iterhtml(paradigms: Iterable[Paradigm], *, encoding: str) -> Iterator[str]:
+def iterhtml(paradigms: Iterable[Paradigm], /, *, encoding: str) -> Iterator[str]:
     yield '<!doctype html>'
     yield '<html>'
     yield f'<head><meta charset="{encoding}"></head>'
@@ -346,7 +346,7 @@ def iterhtml(paradigms: Iterable[Paradigm], *, encoding: str) -> Iterator[str]:
     yield '</html>'
 
 
-def iterlines(paradigm: Paradigm) -> Iterator[str]:
+def iterlines(paradigm: Paradigm, /) -> Iterator[str]:
     yield f'<h2>{paradigm.iso} {paradigm.name} ({paradigm.cls.name})</h2>'
     yield '<table border="1">'
     contents = {cell: list(occ) for cell, occ in
