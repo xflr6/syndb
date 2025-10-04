@@ -11,7 +11,6 @@ import itertools
 import os
 import pathlib
 import sys
-from typing import Union
 import xml.etree.ElementTree as etree
 import zipfile
 
@@ -41,15 +40,14 @@ PARADIGMS_HTML = pathlib.Path('paradigms.html')
 ENCODING = 'utf-8'
 
 
-def get_content_tree(filename: Union[os.PathLike, str] = ODS_FILE, /, *,
+def get_content_tree(filename: os.PathLike[str] | str = ODS_FILE, /, *,
                      content: str = 'content.xml') -> etree.ElementTree:
     with zipfile.ZipFile(filename) as archive, archive.open(content) as f:
-        result = etree.parse(f)
-    return result
+        return etree.parse(f)
 
 
 def get_element_text(element: etree.Element, /) -> str:
-    return etree.tostring(element, 'utf-8', method='text').decode('utf-8')
+    return etree.tostring(element, 'unicode', method='text')
 
 
 def load_tables(tree: etree.ElementTree, /, *,
@@ -89,7 +87,7 @@ class BooleanZeroOne(sa.TypeDecorator):
 
 def dbschema(metadata: sa.MetaData = REGISTRY.metadata, /, *,
              engine: sa.engine.Engine = ENGINE) -> None:
-    def print_sql(sql, *_, **__):
+    def print_sql(sql, *_, **__) -> None:
         print(sql.compile(dialect=engine.dialect))
 
     mock_engine = sa.create_mock_engine(engine.url, executor=print_sql)
@@ -286,7 +284,7 @@ class SyncretismCell:
     cell = relationship('ParadigmClassCell')
 
 
-def insert_tables(tables: dict[str, Sequence[Sequence[str]]], *,
+def insert_tables(tables: Mapping[str, Sequence[Sequence[str]]], *,
                   engine: sa.engine.Engine = ENGINE) -> None:
     db_path = pathlib.Path(engine.url.database)
     if db_path.exists():
@@ -297,13 +295,14 @@ def insert_tables(tables: dict[str, Sequence[Sequence[str]]], *,
         for cls in [Reference, Language, ParadigmClass, ParadigmClassCell,
                     Paradigm, ParadigmContent, Syncretism, SyncretismCell]:
             header, *rows = tables[cls.__tablename__]
-            header = [h for h in header if h]
+            # skip rows columns with empty header
+            header = [h for h in header if h]  
             rows = ((v.strip() or None for v in row) for row in rows)
-            params = [dict(zip(header, r)) for r in rows]
+            params = [dict(zip(header, r, strict=False)) for r in rows]
             conn.execute(sa.insert(cls), params)
 
 
-def export_csv(metadata: sa.MetaData = REGISTRY.metadata, *,
+def export_csv(metadata: sa.MetaData = REGISTRY.metadata, /, *,
                engine: sa.engine.Engine = ENGINE,
                encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.zip')
@@ -375,7 +374,7 @@ def iterlines(paradigm: Paradigm, /) -> Iterator[str]:
     yield '</table>'
 
 
-def main() -> None:
+def main() -> str | None:
     #dbschema()
     tree = get_content_tree()
     tables = load_tables(tree)
