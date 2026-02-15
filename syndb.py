@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["sqlalchemy>=1.4"]
+# ///
 
 """Morphological paradigm/syncretism database from ODS spreadsheet tables."""
 
