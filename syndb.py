@@ -103,7 +103,7 @@ def dump_sql(engine: sa.engine.Engine = ENGINE, /, *,
              encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.sql')
     with (contextlib.closing(engine.raw_connection()) as dbapi_conn,
-          filepath.open(mode='w', encoding=encoding)) as f:
+          filepath.open(mode='w', encoding=encoding) as f):
         for line in dbapi_conn.iterdump():
             print(line, file=f)
     return filepath
