@@ -15,8 +15,8 @@ and exports (converts) the database into the following files:
 Dependencies
 ------------
 
-- Python_ 3.11+ (including ElementTree_ used for ODS reading)
-- SQLAlchemy_ 1.4+
+- Python_ 3.11+
+- SQLAlchemy_ 2+
 
 
 .. _ODS spreadsheet: https://en.wikipedia.org/wiki/OpenDocument
@@ -24,7 +24,7 @@ Dependencies
 .. _CSV: https://en.wikipedia.org/wiki/Comma-separated_values
 .. _Python: https://www.python.org
 .. _ElementTree: https://docs.python.org/library/xml.etree.elementtree.html
-.. _SQLAlchemy: https://www.sqlalchemy.org/
+.. _SQLAlchemy: https://www.sqlalchemy.org
 
 .. |Build| image:: https://github.com/xflr6/syndb/actions/workflows/build.yaml/badge.svg?branch=master
     :target: https://github.com/xflr6/syndb/actions/workflows/build.yaml?query=branch%3Amaster
