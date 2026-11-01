@@ -46,7 +46,8 @@ ENCODING = 'utf-8'
 
 def get_content_tree(filename: os.PathLike[str] | str = ODS_FILE, /, *,
                      content: str = 'content.xml') -> etree.ElementTree:
-    with zipfile.ZipFile(filename) as archive, archive.open(content) as f:
+    with (zipfile.ZipFile(filename) as archive,
+          archive.open(content) as f):
         return etree.parse(f)
 
 
@@ -101,8 +102,8 @@ def dbschema(metadata: sa.MetaData = REGISTRY.metadata, /, *,
 def dump_sql(engine: sa.engine.Engine = ENGINE, /, *,
              encoding: str = ENCODING) -> pathlib.Path:
     filepath = pathlib.Path(engine.url.database).with_suffix('.sql')
-    with contextlib.closing(engine.raw_connection()) as dbapi_conn,\
-         filepath.open('w', encoding=encoding) as f:
+    with (contextlib.closing(engine.raw_connection()) as dbapi_conn,
+          filepath.open(mode='w', encoding=encoding)) as f:
         for line in dbapi_conn.iterdump():
             print(line, file=f)
     return filepath
@@ -288,17 +289,16 @@ class SyncretismCell:
     cell = relationship('ParadigmClassCell')
 
 
-def insert_tables(tables: Mapping[str, Sequence[Sequence[str]]], *,
+def insert_tables(tables: Mapping[str, Sequence[Sequence[str]]], /, *,
                   engine: sa.engine.Engine = ENGINE) -> None:
-    db_path = pathlib.Path(engine.url.database)
-    if db_path.exists():
+    if (db_path := pathlib.Path(engine.url.database)).exists():
         db_path.unlink()
 
     REGISTRY.metadata.create_all(engine)
     with engine.begin() as conn:
         for cls in [Reference, Language, ParadigmClass, ParadigmClassCell,
                     Paradigm, ParadigmContent, Syncretism, SyncretismCell]:
-            header, *rows = tables[cls.__tablename__]
+            (header, *rows) = tables[cls.__tablename__]
             # skip rows columns with empty header
             header = [h for h in header if h]  
             rows = ((v.strip() or None for v in row) for row in rows)
@@ -312,12 +312,13 @@ def export_csv(metadata: sa.MetaData = REGISTRY.metadata, /, *,
     filepath = pathlib.Path(engine.url.database).with_suffix('.zip')
     # zipfile only supports naive, use local time
     date_time = datetime.datetime.now().timetuple()[:6]
-    with engine.connect() as conn, zipfile.ZipFile(filepath, 'w') as archive:
+    with (engine.connect() as conn,
+          zipfile.ZipFile(filepath, 'w') as archive):
         for table in sorted(metadata.sorted_tables, key=lambda x: x.name):
             result = conn.execute(table.select())
             info = zipfile.ZipInfo(f'{table.name}.csv', date_time=date_time)
             info.compress_type = zipfile.ZIP_DEFLATED
-            with io.TextIOWrapper(archive.open(info, 'w'),
+            with io.TextIOWrapper(archive.open(info, mode='w'),
                                   encoding=encoding, newline='',
                                   line_buffering=True) as f:
                 writer = csv.writer(f)
@@ -331,7 +332,8 @@ def render_html(filepath: pathlib.Path = PARADIGMS_HTML, /, *,
     query = (sa.select(Paradigm)
              .options(sa.orm.joinedload(Paradigm.cls).selectinload(ParadigmClass.cells),
                       sa.orm.selectinload(Paradigm.contents)))
-    with Session() as session, filepath.open('w', encoding=encoding) as f:
+    with (Session() as session,
+          filepath.open(mode='w', encoding=encoding) as f):
         paradigms = session.execute(query).scalars()
         for line in iterhtml(paradigms, encoding=encoding):
             print(line, file=f)
